@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Arch-Banana Pro+ 2K 极速版</title>
+    <style>
+        :root { --main: #2c3e50; --blue: #3498db; }
+        body { font-family: 'Segoe UI', sans-serif; max-width: 850px; margin: 0 auto; padding: 20px; background: #f4f7f9; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .box { margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
+        .thumb-img { max-height: 180px; display: none; margin: 10px auto; border-radius: 8px; border: 1px solid #ddd; }
+        
+        /* 对比滑杆 */
+        .comp-container { position: relative; width: 100%; max-width: 800px; margin: 20px auto; overflow: hidden; border-radius: 10px; display: none; border: 4px solid white; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
+        .comp-view { width: 100%; display: block; }
+        .comp-overlay { position: absolute; top: 0; left: 0; height: 100%; width: 50%; overflow: hidden; border-right: 3px solid white; z-index: 2; }
+        .comp-overlay img { width: auto; height: 100%; max-width: none; }
+        .comp-slider { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 3; cursor: col-resize; opacity: 0; margin: 0; }
+
+        button { width: 100%; padding: 16px; background: var(--main); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #1a252f; transform: translateY(-1px); }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        .download-btn { display: inline-block; margin-top: 20px; padding: 12px 30px; background: #27ae60; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="text-align:center; color: var(--main);">🏗️ Arch-Banana 2K Pro</h2>
+    <p style="text-align:center; font-size: 14px; color: #7f8c8d; margin-bottom: 30px;">
+        已锁定 2K 高清模型：出图中
+    </p>
+    
+    <div class="box">
+        <strong>底图上传</strong>
+        <input type="file" id="imageInput" accept="image/*" style="display:block; margin-top:10px;">
+        <div style="text-align:center;"><img id="thumbnail" class="thumb-img"></div>
+    </div>
+
+    <div class="box">
+        <strong>风格指令</strong>
+        <textarea id="promptInput" style="width:100%; height:70px; margin-top:10px; box-sizing:border-box; border:1px solid #ddd; border-radius:5px; padding:10px;" placeholder="描述你的方案需求，如：现代公建化住宅、意式极简风格..."></textarea>
+    </div>
+
+    <button id="renderBtn">开始 2K 高清渲染</button>
+    <div id="status" style="text-align:center; margin-top:15px; color:var(--blue); font-weight:bold; font-size:14px;"></div>
+
+    <div id="resultArea" style="display:none; text-align:center; margin-top:40px; border-top:2px solid #f0f0f0; padding-top:25px;">
+        <h3>Before / After 对比</h3>
+        <div class="comp-container" id="compContainer">
+            <img id="afterImg" class="comp-view"> 
+            <div class="comp-overlay" id="overlayLayer"><img id="beforeImg"></div>
+            <input type="range" min="0" max="100" value="50" class="comp-slider" id="slider">
+        </div>
+        <button class="download-btn" id="dlBtn">📥 下载 2K 渲染原图</button>
+    </div>
+</div>
+
+<script>
+    let beforeData = "";
+    let lastUrl = "";
+
+    // 缩略图预览
+    document.getElementById('imageInput').onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                beforeData = ev.target.result;
+                document.getElementById('thumbnail').src = beforeData;
+                document.getElementById('thumbnail').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // 渲染逻辑
+    document.getElementById('renderBtn').onclick = async function() {
+        const input = document.getElementById('imageInput');
+        if (!input.files[0]) return alert("请先上传建筑底图");
+
+        const btn = this;
+        const status = document.getElementById('status');
+        btn.disabled = true;
+        btn.innerText = "2K 渲染进行中...";
+        status.innerText = "💡 正在调用 Nano-banana 2-2k 模型，深度处理建筑细节...";
+
+        const formData = new FormData();
+        formData.append('image', input.files[0]);
+        formData.append('prompt', document.getElementById('promptInput').value);
+
+        try {
+            const res = await fetch('http://localhost:3000/render', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.success) {
+                lastUrl = data.result.images ? data.result.images[0].url : data.result.content.match(/https?:\/\/[^\s\)]+/gi)[0];
+
+                document.getElementById('beforeImg').src = beforeData;
+                document.getElementById('afterImg').src = lastUrl;
+                document.getElementById('resultArea').style.display = 'block';
+                document.getElementById('compContainer').style.display = 'block';
+
+                const slider = document.getElementById('slider');
+                const overlay = document.getElementById('overlayLayer');
+                slider.oninput = () => overlay.style.width = slider.value + "%";
+                
+                status.innerText = "✅ 2K 渲染完成！";
+            }
+        } catch (e) { alert("连接失败"); }
+        finally { btn.disabled = false; btn.innerText = "开始 2K 高清渲染"; }
+    };
+
+    // 强制下载
+    document.getElementById('dlBtn').onclick = async function() {
+        if (!lastUrl) return;
+        this.innerText = "准备大图中...";
+        try {
+            const response = await fetch(lastUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Arch_2K_Render_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            this.innerText = "📥 下载 2K 渲染原图";
+        } catch (e) { alert("下载出错，请右键图片手动保存"); }
+    };
+</script>
+</body>
+</html>
