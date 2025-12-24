@@ -91,7 +91,7 @@
         formData.append('prompt', document.getElementById('promptInput').value);
 
         try {
-            const res = await fetch('http://localhost:3000/render', { method: 'POST', body: formData });
+            const res = await fetch('/render', { method: 'POST', body: formData });
             const data = await res.json();
 
             if (data.success) {
